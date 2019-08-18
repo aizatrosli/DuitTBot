@@ -172,7 +172,7 @@ def drawtable(data, col_width=3.0, row_height=0.625, font_size=14,
 
 def main():
     """Run bot."""
-    updater = Updater("796713572:AAH1hbAGZU8VsW4kAc-8hJjyj1l8mv0rzcc")
+    updater = Updater()
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
