@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import sys, os, io
+import sys, os, io, json
 from datetime import datetime, timedelta
 from base import *
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
@@ -9,6 +9,11 @@ import logging, telegram
 import pandas as pd
 import numpy as np
 
+token = ""
+
+with open('token.json') as json_file:
+	data = json.load(json_file)
+	token = data['apikey']
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -16,20 +21,59 @@ logger = logging.getLogger(__name__)
 cashdb = pd.HDFStore('cash.h5')
 bankdb = pd.HDFStore('bank.h5')
 
+'''workaround for longlist
+if len(args[0]) > 0:
+	message = ["[{0}] {1}".format(key,val) for key, val in chat_data['DICTITEMS'].items()]
+	for text in message:
+		if str(args[0]) in text:
+			newmessage.append(text)
+msgs = [newmessage[i:i + 10] for i in range(0, len(newmessage), 10)]
+for text in msgs:
+	update.message.reply_text(text=.join(text))
+'''
 
-def cash(bot, update, args, chat_data):
-	if not chat_data['DICTITEMS']:
-		chat_data['DICTITEMS'] = getallitemlist()
-	newmessage = []
-	'''workaround for longlist'''''
-	if len(args[0]) > 0:
-		message = ["[{0}] {1}".format(key,val) for key, val in chat_data['DICTITEMS'].items()]
-		for text in message:
-			if str(args[0]) in text:
-				newmessage.append(text)
-	msgs = [newmessage[i:i + 10] for i in range(0, len(newmessage), 10)]
-	for text in msgs:
-		update.message.reply_text(text="\n".join(text))
+
+def spend(bot, update, args, chat_data):
+	keyboard = [[
+		InlineKeyboardButton("Current Spend", callback_data='current'),
+		InlineKeyboardButton("Weekly Spend", callback_data='weekly'),
+		InlineKeyboardButton("Monthly Spend", callback_data='monthly')
+		]]
+	reply_markup = InlineKeyboardMarkup(keyboard)
+	update.message.reply_text("Bank Menu", reply_markup=reply_markup, parse_mode=telegram.ParseMode.MARKDOWN)
+
+
+def spenddecision(bot, update):
+	query = update.callback_query
+	chat_id = query.message.chat_id
+	if 'current' in query.data:
+		bot.edit_message_text(text="Add", chat_id=chat_id, message_id=query.message.message_id)
+	elif 'weekly' in query.data:
+		bot.edit_message_text(text="Remove", chat_id=chat_id, message_id=query.message.message_id)
+	elif 'monthly' in query.data:
+		bot.edit_message_text(text="Remove", chat_id=chat_id, message_id=query.message.message_id)
+	else:
+		bot.edit_message_text(text="Unexpected input", chat_id=chat_id, message_id=query.message.message_id)
+
+
+def bank(bot, update, args, chat_data):
+	keyboard = [[
+		InlineKeyboardButton("Current Bank", callback_data='current'),
+		InlineKeyboardButton("Refresh Bank", callback_data='refresh')
+		]]
+	reply_markup = InlineKeyboardMarkup(keyboard)
+	update.message.reply_text("Bank Menu", reply_markup=reply_markup, parse_mode=telegram.ParseMode.MARKDOWN)
+
+
+def bankdecision(bot, update):
+	query = update.callback_query
+	chat_id = query.message.chat_id
+	if 'current' in query.data:
+		bot.edit_message_text(text="Add", chat_id=chat_id, message_id=query.message.message_id)
+	elif 'refresh' in query.data:
+		bot.edit_message_text(text="Remove", chat_id=chat_id, message_id=query.message.message_id)
+	else:
+		bot.edit_message_text(text="Unexpected input", chat_id=chat_id, message_id=query.message.message_id)
 
 
 def start(bot, update, chat_data):
@@ -37,51 +81,40 @@ def start(bot, update, chat_data):
 	print(chat_data.keys())
 
 
-def manage(bot, update):
+def manage(bot, update, chat_data):
 	chat_id = update.message.chat_id
 	try:
-		if len(USERDB[str(chat_id)][0].tolist()) > 0:
-			update.message.reply_text('\n'.join(USERDB[str(chat_id)][0].tolist()))
-		else:
-			update.message.reply_text(' - NO ITEM - ')
+		update.message.reply_text(' - NO ITEM - ')
 	except:
 		update.message.reply_text(' - NO USER HISTORY - ')
 		pass
-	update.message.reply_text('Use {0}\nUse {1}'.format(HELP['ADDLIST'],HELP['ITEMLIST']))
+	update.message.reply_text('manage')
 
 
-def cash(bot, update, chat_data):
-	update.message.reply_text('Current cash')
-
-
-def addcash(bot, update, args, chat_data):
-	chat_id = update.message.chat_id
-	currentcash = 0
-	try:
-		currentcash = cashdb['current']
-	except KeyError:
-		pass
-	if len(args[0]) > 0:
-		currentcash = currentcash + float(args[0])
-		cashdb['current'] = currentcash
-	update.message.reply_text("Cash : {0}".format(currentcash))
-
-
-def resetcash(bot, update):
-	keyboard = [[InlineKeyboardButton("YES", callback_data='Yes'),
-				InlineKeyboardButton("NO", callback_data='No')]]
+def cash(bot, update, args, chat_data):
+	keyboard = [[
+		InlineKeyboardButton("Current Cash", callback_data='current'),
+		InlineKeyboardButton("Add Cash", callback_data='add'),
+		InlineKeyboardButton("Remove Cash", callback_data='remove'),
+		InlineKeyboardButton("Reset Cash", callback_data="reset")
+		]]
 	reply_markup = InlineKeyboardMarkup(keyboard)
 	update.message.reply_text("Reset Cash", reply_markup=reply_markup, parse_mode=telegram.ParseMode.MARKDOWN)
 
 
-def resetcashdecision(bot, update):
+def cashdecision(bot, update):
 	query = update.callback_query
 	chat_id = query.message.chat_id
-	if 'Yes' in query.data:
-		USERDB[str(chat_id)] = pd.DataFrame()
-		bot.edit_message_text(text=ACTION['CLEARLISTY'],chat_id=chat_id, message_id=query.message.message_id)
+	if 'add' in query.data:
+		bot.edit_message_text(text="Add", chat_id=chat_id, message_id=query.message.message_id)
+	elif 'current' in query.data:
+		bot.edit_message_text(text="Remove", chat_id=chat_id, message_id=query.message.message_id)
+	elif 'remove' in query.data:
+		bot.edit_message_text(text="Remove", chat_id=chat_id, message_id=query.message.message_id)
+	elif 'reset' in query.data:
+		bot.edit_message_text(text="Reset", chat_id=chat_id, message_id=query.message.message_id)
 	else:
-		bot.edit_message_text(text=ACTION['CLEARLISTN'],chat_id=chat_id, message_id=query.message.message_id)
+		bot.edit_message_text(text="Unexpected input", chat_id=chat_id, message_id=query.message.message_id)
 
 
 def getprice(bot, update, args,chat_data):
@@ -89,11 +122,8 @@ def getprice(bot, update, args,chat_data):
 	if len(args) > 0:
 		update.message.reply_text('Please wait. Fetching data...')
 		for arg in args:
-			argstr = chat_data['DICTITEMS'][int(arg)] if arg.isdigit() else arg
-			pricedf = getlatestpriceitem(argstr)
-			drawtable(pricedf).savefig("{0}.png".format(chat_id), bbox_inches='tight')
-			bot.send_message(chat_id=chat_id, text="*[{0}]* {1}Zeny\n".format(argstr,pricedf['price'][0]),parse_mode=telegram.ParseMode.MARKDOWN)
-			bot.send_photo(chat_id=chat_id, photo=open("{0}.png".format(chat_id), 'rb'))
+			bot.send_message(chat_id=chat_id, text="Data Collect",parse_mode=telegram.ParseMode.MARKDOWN)
+			#bot.send_photo(chat_id=chat_id, photo=open("{0}.png".format(chat_id), 'rb'))
 
 
 def notify(bot, job):
@@ -144,7 +174,7 @@ def error(bot, update, error):
 
 def main():
 	"""Run bot."""
-	updater = Updater()
+	updater = Updater(token)
 
 	# Get the dispatcher to register handlers
 	dp = updater.dispatcher
@@ -153,19 +183,20 @@ def main():
 	'''
 	spend
 	'''
+	dp.add_handler(CommandHandler("spend", spend, pass_args=True, pass_chat_data=True))
+	dp.add_handler(CallbackQueryHandler(spenddecision))
 	dp.add_handler(CommandHandler("getprice", getprice, pass_args=True, pass_chat_data=True))
-	dp.add_handler(CommandHandler("manage", manage))
+	dp.add_handler(CommandHandler("manage", manage, pass_chat_data=True))
 	'''
 	cash
 	'''
-	dp.add_handler(CommandHandler("cash", cash, pass_chat_data=True))
-	dp.add_handler(CommandHandler("addcash", addcash, pass_args=True, pass_chat_data=True))
-	dp.add_handler(CommandHandler("emptycash", resetcash))
-	dp.add_handler(CallbackQueryHandler(resetcashdecision))
+	dp.add_handler(CommandHandler("cash", cash, pass_args=True, pass_chat_data=True))
+	dp.add_handler(CallbackQueryHandler(cashdecision))
 	'''
 	bank
 	'''
 	dp.add_handler(CommandHandler("bank",bank, pass_args=True,pass_chat_data=True))
+	dp.add_handler(CallbackQueryHandler(bankdecision))
 	'''
 	etc
 	'''
