@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import sys, os, io, json
+import sys, os, io, json, time
 from datetime import datetime, timedelta
 from base import *
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
@@ -18,8 +18,7 @@ with open('token.json') as json_file:
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 logger = logging.getLogger(__name__)
-cashdb = pd.HDFStore('cash.h5')
-bankdb = pd.HDFStore('bank.h5')
+duitdb = pd.HDFStore('duitdb.h5')
 
 '''workaround for longlist
 if len(args[0]) > 0:
@@ -77,7 +76,23 @@ def bankdecision(bot, update):
 
 
 def start(bot, update, chat_data):
-	update.message.reply_text('DuitTBot')
+	user_id = str(update.message.from_user.id)
+	username = update.message.from_user.username
+	chat_data['test'] = "aylmao"
+	update.message.reply_text('Welcome to DuitTBot, {0}!\nLoading user data...'.format(username))
+	if "/"+user_id in duitdb.keys():
+		latestdata = duitdb[user_id].tail(1)
+		update.message.reply_text('Current cash: MYR {0} (lastupdate {1})'.format(latestdata['cash']['value'], datetime.fromtimestamp(latestdata.index.values.astype(int)[0]).strftime('%Y-%m-%d %H:%M:%S')))
+	else:
+		currenttime = int(datetime.now().timestamp())
+		initdb = {'cash': {'value': 0, 'add': False, 'remove': False, 'reset': True}, 'lastupdate': currenttime}
+		cashdb = pd.DataFrame([initdb])
+		cashdb.set_index(['lastupdate'], inplace=True)
+		duitdb[user_id] = cashdb
+		print(duitdb[user_id])
+		#chat_data[user_id] = duitdb[user_id]
+		pass
+
 	print(chat_data.keys())
 
 
@@ -108,7 +123,10 @@ def cashdecision(bot, update):
 	if 'add' in query.data:
 		bot.edit_message_text(text="Add", chat_id=chat_id, message_id=query.message.message_id)
 	elif 'current' in query.data:
-		bot.edit_message_text(text="Remove", chat_id=chat_id, message_id=query.message.message_id)
+		try:
+			bot.edit_message_text(text="Current", chat_id=chat_id, message_id=query.message.message_id)
+		except:
+			pass
 	elif 'remove' in query.data:
 		bot.edit_message_text(text="Remove", chat_id=chat_id, message_id=query.message.message_id)
 	elif 'reset' in query.data:
@@ -221,6 +239,5 @@ if __name__ == '__main__':
 	try:
 		main()
 	except KeyboardInterrupt:
-		cashdb.close()
-		bankdb.close()
+		duitdb.close()
 		sys.exit()
